@@ -467,13 +467,16 @@
       isTyping = false;
     };
 
-    document.getElementById("chat_textbox").onblur = function () {
-      isTyping = false;
+    const chatTextbox = document.getElementById("chat_textbox");
+if (chatTextbox) {  // sprawdź czy element istnieje
+    chatTextbox.onblur = function () {
+        isTyping = false;
     };
 
-    document.getElementById("chat_textbox").onfocus = function () {
-      isTyping = true;
+    chatTextbox.onfocus = function () {
+        isTyping = true;
     };
+}
 
     var spacePressed = false,
       qPressed = false,
