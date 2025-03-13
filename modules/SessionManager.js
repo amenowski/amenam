@@ -27,7 +27,7 @@ class SessionManager {
 
     const { data: user, error } = await this.supabase
       .from("users")
-      .select("id, nick, level, points, color")
+      .select("id, nick, level, points, color, premium")
       .eq("userHash", userHash)
       .single();
 
@@ -54,7 +54,7 @@ class SessionManager {
 
       const { data: user, error } = await this.supabase
         .from("users")
-        .select("id, nick, level, points")
+        .select("id, nick, level, points, premium")
         .eq("userHash", userHash)
         .single();
 

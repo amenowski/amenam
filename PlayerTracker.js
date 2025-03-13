@@ -129,7 +129,8 @@ PlayerTracker.prototype.initializeSession = async function() {
             this.points = session.points;
             this.userInfo = {
                 id: session.id,
-                nick: session.nick
+                nick: session.nick,
+                premium: session.premium  // Dodaj informację o premium
             };
             this.lastActivity = Date.now();
 

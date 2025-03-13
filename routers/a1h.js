@@ -181,7 +181,8 @@ router.post('/login', async (req, res) => {
                 id: user.id,
                 nick: user.nick,
                 level: user.level,
-                points: user.points
+                points: user.points,
+                premium: user.premium
             }
         });
 

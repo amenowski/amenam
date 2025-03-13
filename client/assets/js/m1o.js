@@ -1028,6 +1028,10 @@ if (chatTextbox) {  // sprawdź czy element istnieje
     var senderName = getString();
     var message = getString();
 
+    if (senderName === "System" && message === "****need_pacc****") {
+      message = "You need Premium, price - 2 points.";
+  }
+
     chatBoard.push({
       name: senderName,
       color: senderName === "System" ? "#FF0000" : color, // Czerwony kolor dla wiadomości systemowych

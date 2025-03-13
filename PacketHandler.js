@@ -3,6 +3,16 @@ var Commands = require("./modules/CommandList");
 const LobbyManager = require("./modules/LobbyManager");
 var LastMsg;
 var SpamBlock;
+const premiumMessageCooldowns = new Map(); // Przechowuje timestamp ostatniej wiadomości dla każdego gracza
+
+const { createClient } = require('@supabase/supabase-js');
+
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY
+);
+
+
 
 function PacketHandler(gameServer, socket) {
   this.gameServer = gameServer;
@@ -12,6 +22,18 @@ function PacketHandler(gameServer, socket) {
   this.pressQ = false;
   this.pressW = false;
   this.pressSpace = false;
+  if (this.socket.playerTracker?.userInfo?.id) {
+    supabase
+        .from("users")
+        .select("premium")
+        .eq("id", this.socket.playerTracker.userInfo.id)
+        .single()
+        .then(({ data }) => {
+            // Ustaw premium w playerTracker
+            this.socket.playerTracker.premium = data?.premium || false;
+        });
+}
+
 }
 
 module.exports = PacketHandler;
@@ -147,10 +169,24 @@ PacketHandler.prototype.handleMessage = function (message) {
       }
       break;
     case 99:
+      if (!this.socket.playerTracker.premium) {
+        const now = Date.now();
+        const lastMessageTime = premiumMessageCooldowns.get(this.socket.playerTracker.userInfo?.id) || 0;
+
+        if (now - lastMessageTime >= 5000) {
+            this.gameServer.sendMSG(
+                this.socket.playerTracker,
+                "<span style='color: #FF0000'>You need Premium, price - 2 points.</span>"
+            );
+            premiumMessageCooldowns.set(this.socket.playerTracker.userInfo?.id, now);
+        }
+        break;
+    }
       var message = "",
         maxLen = this.gameServer.config.chatMaxMessageLength * 2,
         offset = 2,
         flags = view.getUint8(1);
+
 
       if (flags & 2) {
         offset += 4;
