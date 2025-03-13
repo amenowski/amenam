@@ -1,0 +1,74 @@
+<div class="title" style="transform: translateY(-21px);">
+    <a href="#" id="load_home">Bubble.am</a> » Znajomi
+</div>
+
+<div class="form-group" style="margin-top: 3px; margin-bottom: 20px;">
+    <table class="table" style="margin-bottom: 5px;">
+        <tr>
+            <td style="text-align: center; border-top: none;">
+                <a href="#" id="addFriend" style="float: none;">
+                    <i class="fa fa-user-plus"></i> Dodaj znajomego
+                </a>
+            </td>
+        </tr>
+    </table>
+    <div class="bub-table-list" id="friend-list" style="overflow-y: auto; height: 390px;">
+        <% if (friends && friends.length > 0) { %>
+            <% friends.forEach(function(friend) { %>
+                <table class="table friend-<%= friend.id %>" style="margin-bottom: 0;">
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="text-align: left; width: 15%; border-top: none; position: relative;">
+                            <span class="img-circle friends-circle <%= friend.status === 'accepted' ? 'friend-accepted' : 'friend-pending' %>">
+                                <%= friend.nick.substr(0,1).toUpperCase() %>
+                            </span>
+                        </td>
+                        <td style="width: 85%; border-top: none; padding-top: 10px;">
+                            <div style="position: relative;">
+                                <span style="display: inline-block;">
+                                    <%= friend.nick %>
+                                    <% if (friend.status === 'accepted') { %>
+                                        <button class="remove-friend" data-id="<%= friend.id %>" style="display: none; background: none; border: none; padding: 0 5px; margin-left: -5px;">
+                                            <i class="fa fa-times" style="color: gray;vertical-align: 0px;"></i>
+                                        </button>
+                                    <% } %>
+                                </span>
+                                <% if (friend.status === 'pending' && friend.isReceiver) { %>
+                                    <span style="position: absolute; right: 0; top: 0;">
+                                        <button class="accept-friend" data-id="<%= friend.id %>" style="background: none; border: none; color: #5cb85c; padding: 0 5px; font-size: 17px;">
+                                            <i class="fa fa-check"></i>
+                                        </button>
+                                        <button class="reject-friend" data-id="<%= friend.id %>" style="background: none; border: none; color: #d9534f; padding: 0 5px; font-size: 17px;">
+                                            <i class="fa fa-times"></i>
+                                        </button>
+                                    </span>
+                                <% } %>
+                                <% if (friend.status === 'pending') { %>
+                                    <% if (friend.isReceiver) { %>
+                                        <small style="color: #888; font-size: 12px; display: block; margin-top: 5px;">
+                                            <%= friend.message || '' %>
+                                        </small>
+                                    <% } else { %>
+                                        <span style="color: #888; font-size: 12px;">
+                                            <button class="remove-friend" data-id="<%= friend.id %>" style="display: none; background: none; border: none; padding: 0 5px; margin-left: -5px;">
+                                                <i class="fa fa-times" style="color: #A9A9A9;vertical-align: 0px; font-size: 13px;"></i>
+                                            </button>
+                                        </span>
+                                    <% } %>
+                                <% } %>
+                                <% if (friend.status === 'accepted') { %>
+                                    <span style="float: right; margin-right: 6px; margin-top: 1px;">
+                                        <span class="status-dot <%= friend.isOnline ? 'online' : 'offline' %>"></span>
+                                    </span>
+                                <% } else if (friend.status === 'pending' && !friend.isReceiver) { %>
+                                    <span style="float: right; margin-right: 6px; margin-top: 1px;">
+                                        <i class="fa fa-clock-o" style="color: #888; font-size: 18px; vertical-align: 0px;"></i>
+                                    </span>
+                                <% } %>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+            <% }); %>
+        <% } %>
+    </div>
+</div>
