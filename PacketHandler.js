@@ -324,26 +324,6 @@ PacketHandler.prototype.handleMessage = function (message) {
         this.gameServer.clients[i].sendPacket(packet);
       }
       break;
-    case 101: // Packet ID dla zamknięcia lobby
-      const lobbyIdLength = view.getUint32(2, true); // Odczytaj długość ID lobby
-      if (view.byteLength < 6 + lobbyIdLength) {
-        // Sprawdź, czy bufor ma wystarczającą długość dla ID lobby
-        console.error("Otrzymano nieprawidłowy pakiet do zamknięcia lobby.");
-        return; // Zakończ, jeśli pakiet jest za krótki
-      }
-
-      let lobbyId = "";
-      for (let i = 0; i < lobbyIdLength; i++) {
-        lobbyId += String.fromCharCode(view.getUint8(6 + i)); // Odczytaj bajty ID lobby
-      }
-
-      LobbyManager.removeLobbyById(lobbyId);
-
-      const buf = new ArrayBuffer(1);
-      const viewW = new DataView(buf);
-      viewW.setUint8(0, 101);
-      this.socket.send(buf);
-
     default:
       break;
   }

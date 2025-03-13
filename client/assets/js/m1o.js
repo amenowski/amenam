@@ -39,6 +39,11 @@
     return nickInput && nickInput.value && nickInput.readOnly && userHash;
   }
 
+  setTimeout(function () {
+    bConnect("ws://localhost:8080");
+    console.log("Connected to server");
+  }, 1000);
+  var bsocket = null;
   wHandle.friends = [];
   wHandle.myFriends = function () {
     return this.friends;
@@ -82,10 +87,25 @@
   };
 
   function loadFriendsList() {
+    console.log("Loading friends list...");
+
     if (!isLoggedIn()) {
       wHandle.friends = [];
       return;
     }
+
+    // Check if we're in the battle modal and already have friends data
+    if (
+      wjQuery("#battle-modal").is(":visible") &&
+      wHandle.friends &&
+      wHandle.friends.length > 0
+    ) {
+      console.log("Using existing friends data for battle modal");
+      displayFriendsInLobby(wHandle.friends);
+      return;
+    }
+
+    // If we don't have friends data or we're not in the battle modal, make a request
     wjQuery.get("/f", { a: "l" }, function (friends) {
       wHandle.friends = friends.filter(
         (friend) =>
@@ -93,36 +113,90 @@
           (friend.status === "pending" && !friend.rejected)
       );
 
-      if (window.location.hash === "#friends") {
+      // If we're in the battle modal, display the friends
+      if (wjQuery("#battle-modal").is(":visible")) {
+        displayFriendsInLobby(wHandle.friends);
+      }
+
+      // Also update the online friends modal if it exists
+      const modalContent = wjQuery("#friends-view-modal-data");
+      if (modalContent.length) {
+        const onlineFriends = wHandle.friends.filter(
+          (f) => f.status === "accepted" && f.isOnline
+        );
+
         wjQuery.get(
-          "/friends-template",
+          "/" + (onlineFriends.length === 0 ? "online-empty" : "online-list"),
           {
-            friends: JSON.stringify(wHandle.friends),
+            onlineFriends: JSON.stringify(onlineFriends),
           },
           function (html) {
-            wjQuery("#friend-list").html(
-              wjQuery(html).find("#friend-list").html()
-            );
+            modalContent.html(html);
           }
         );
       }
-
-      const onlineFriends = wHandle.friends.filter(
-        (f) => f.status === "accepted" && f.isOnline
-      );
-      const modalContent = wjQuery("#friends-view-modal-data");
-
-      wjQuery.get(
-        "/" + (onlineFriends.length === 0 ? "online-empty" : "online-list"),
-        {
-          onlineFriends: JSON.stringify(onlineFriends),
-        },
-        function (html) {
-          modalContent.html(html);
-        }
-      );
     });
   }
+
+  // Helper function to display friends in the lobby
+  function displayFriendsInLobby(friends) {
+    const onlineFriends = friends.filter(
+      (f) => f.status === "accepted" && f.isOnline
+    );
+
+    // Find the lobby-friends container
+    const lobbyFriends = wjQuery(".lobby-friends-list");
+
+    if (lobbyFriends.length) {
+      // Clear loading indicator
+      lobbyFriends.empty();
+
+      if (onlineFriends.length === 0) {
+        lobbyFriends.html(
+          '<p class="text-center">No online friends available</p>'
+        );
+      } else {
+        // Fetch the online-list template and render it with our friends data
+        wjQuery.get(
+          "/online-list",
+          {
+            onlineFriends: JSON.stringify(onlineFriends),
+          },
+          function (html) {
+            // Insert the rendered HTML into the lobby-friends container
+            lobbyFriends.html(html);
+
+            // Add data-id attributes to the friend elements if needed
+            onlineFriends.forEach(function (friend) {
+              wjQuery(`.friend-${friend.id}`).attr("data-id", friend.id);
+              wjQuery(`.friend-${friend.id}`).on("click", () => {
+                bInvite(friend.id);
+              });
+              // dodaj cursor pointer
+              wjQuery(`.friend-${friend.id}`).css("cursor", "pointer");
+            });
+          }
+        );
+      }
+    }
+  }
+
+  // Call loadFriendsList when the battle modal is shown
+  wjQuery(document).on("shown.bs.modal", "#battle-modal", function () {
+    console.log("Battle modal shown, loading friends list...");
+
+    // Make sure the lobby-friends container exists
+    if (!wjQuery("#battle-modal .lobby-friends-list").length) {
+      wjQuery("#battle-modal .modal-body").append(
+        '<div class="friends-section">' +
+          "<h4>Online Friends</h4>" +
+          '<div class="lobby-friends-list"><p>Loading friends...</p></div>' +
+          "</div>"
+      );
+    }
+
+    // Load the friends list
+  });
 
   wHandle.loadAccount = function () {
     return `
@@ -358,6 +432,10 @@
                         );
                       }
                       wjQuery("#battle-modal").html(html).modal("show");
+                      const msg = new DataView(new ArrayBuffer(1)); // 1 bajt dla ID pakietu, 1 bajt dla operacji, 4 bajty dla długości ID, a reszta dla ID
+                      msg.setUint8(0, 1); // Packet ID for lobby operations
+
+                      bubSend(msg);
                     }
                   );
                   return false;
@@ -415,27 +493,6 @@
 
   // PAKIETY
 
-  window.bClose = function () {
-    const lobbyId = wjQuery(".lobby-container").data("lobby-id");
-
-    if (lobbyId && ws && ws.readyState === WebSocket.OPEN) {
-      const msg = new DataView(new ArrayBuffer(1 + 1 + 4 + lobbyId.length)); // 1 bajt dla ID pakietu, 1 bajt dla operacji, 4 bajty dla długości ID, a reszta dla ID
-      msg.setUint8(0, 101); // Packet ID for lobby operations
-      msg.setUint8(1, 1);
-      msg.setUint32(2, lobbyId.length, true); // Długość ID lobby
-      for (let i = 0; i < lobbyId.length; i++) {
-        msg.setUint8(6 + i, lobbyId.charCodeAt(i)); // Ustaw bajty ID lobby
-      }
-
-      ws.send(msg.buffer);
-
-      wjQuery("#battle-modal").remove();
-      wjQuery(".modal-backdrop").remove();
-    }
-  };
-  window.bKick = function () {};
-  window.bStart = function () {};
-
   function gameLoop() {
     ma = true;
     document.getElementById("canvas").focus();
@@ -468,15 +525,16 @@
     };
 
     const chatTextbox = document.getElementById("chat_textbox");
-if (chatTextbox) {  // sprawdź czy element istnieje
-    chatTextbox.onblur = function () {
+    if (chatTextbox) {
+      // sprawdź czy element istnieje
+      chatTextbox.onblur = function () {
         isTyping = false;
-    };
+      };
 
-    chatTextbox.onfocus = function () {
+      chatTextbox.onfocus = function () {
         isTyping = true;
-    };
-}
+      };
+    }
 
     var spacePressed = false,
       qPressed = false,
@@ -603,6 +661,7 @@ if (chatTextbox) {  // sprawdź czy element istnieje
     setInterval(sendMouseMove, 40);
 
     null == ws && showConnecting();
+
     wjQuery("#overlays").show();
   }
 
@@ -759,6 +818,141 @@ if (chatTextbox) {  // sprawdź czy element istnieje
     }
   }
 
+  // ----------------------------------------------
+  //  SERWER CENTRALNY KURWA DO NOTYFIAKCJI I LOBBY
+  // ----------------------------------------------
+  function bConnect(a) {
+    if (bsocket) {
+      bsocket.onopen = null;
+      bsocket.onmessage = null;
+      bsocket.onclose = null;
+      try {
+        bsocket.close();
+      } catch (c) {}
+      bsocket = null;
+    }
+    bsocket = new WebSocket(a);
+    bsocket.binaryType = "arraybuffer";
+    bsocket.onopen = function () {
+      console.log("WS Open: " + a);
+    };
+
+    bsocket.onclose = function () {
+      var random = Math.floor(Math.random() * (20 - 4 + 1)) + 4;
+
+      console.log("WS closed. Trying to reconnect in " + random + " seconds..");
+      setTimeout(function () {
+        bConnect(a);
+      }, random * 1000);
+    };
+    bsocket.onmessage = bubbleMessage;
+    bsocket.onerror = function () {
+      console.log("WebSocket error");
+    };
+  }
+  function bubbleMessage(msg) {
+    if (typeof msg.data === "string") {
+      var drb = JSON.parse(msg.data);
+
+      if (typeof drb.friends !== undefined) {
+        wjQuery(".lobby-friends").html(drb.friends);
+      }
+    } else {
+      readPacket(new DataView(msg.data));
+    }
+  }
+  function readPacket(view) {
+    function getString() {
+      var text = "",
+        char;
+      while ((char = view.getUint16(offset, true)) != 0) {
+        // Use 'view' instead of 'a'
+        offset += 2;
+        text += String.fromCharCode(char);
+      }
+      offset += 2;
+      return text;
+    }
+
+    var offset = 0; // Use 'offset' instead of 'c'
+    if (240 == view.getUint8(offset)) {
+      // Use 'view' instead of 'a'
+      offset += 5;
+    }
+
+    switch (view.getUint8(offset++)) {
+      case 1:
+        console.log("LOADING LOBBY FRIENDS");
+        displayFriendsInLobby(friends);
+        break;
+      case 2:
+        console.log("Lobby closed");
+        wjQuery("#battle-modal").remove();
+        wjQuery(".modal-backdrop").remove();
+        break;
+      case 3:
+        console.log("dostales zapke chujku");
+        break;
+    }
+  }
+  function bubbleRunning() {
+    return null != bsocket && bsocket.readyState == bsocket.OPEN;
+  }
+  function bubSend(a) {
+    bsocket.send(a.buffer);
+  }
+
+  // PAKIETY LOBBY ITP
+  // PAKIETY LOBBY ITP
+  // PAKIETY LOBBY ITP
+
+  window.bClose = function () {
+    console.log("Closing lobby");
+    const lobbyId = wjQuery(".lobby-container").data("lobby-id");
+
+    if (lobbyId && ws && ws.readyState === WebSocket.OPEN) {
+      const msg = new DataView(new ArrayBuffer(1 + 1 + 4 + lobbyId.length)); // 1 bajt dla ID pakietu, 1 bajt dla operacji, 4 bajty dla długości ID, a reszta dla ID
+      msg.setUint8(0, 2); // Packet ID for lobby operations
+      msg.setUint8(1, 1);
+      msg.setUint32(2, lobbyId.length, true); // Długość ID lobby
+      for (let i = 0; i < lobbyId.length; i++) {
+        msg.setUint8(6 + i, lobbyId.charCodeAt(i)); // Ustaw bajty ID lobby
+      }
+
+      bubSend(msg);
+
+      wjQuery("#battle-modal").remove();
+      wjQuery(".modal-backdrop").remove();
+    }
+  };
+  window.bInvite = function (friendId) {
+    const lobbyId = wjQuery(".lobby-container").data("lobby-id");
+    console.log(friendId, lobbyId);
+
+    // Calculate buffer size: 1 byte for packet ID + 1 byte for operation +
+    // 4 bytes for lobby ID length + lobby ID bytes + 4 bytes for friend ID
+    const msg = new DataView(new ArrayBuffer(1 + 1 + 4 + lobbyId.length + 4));
+
+    msg.setUint8(0, 3); // Packet ID for lobby operations
+    msg.setUint8(1, 1);
+    msg.setUint32(2, lobbyId.length, true); // Długość ID lobby
+
+    // Set lobby ID bytes
+    for (let i = 0; i < lobbyId.length; i++) {
+      msg.setUint8(6 + i, lobbyId.charCodeAt(i));
+    }
+
+    // Set friend ID at the end of the buffer
+    msg.setUint32(6 + lobbyId.length, friendId, true);
+
+    bubSend(msg);
+  };
+  window.bKick = function () {};
+  window.bStart = function () {};
+
+  // ----------------------------------------------
+  // ----------------------------------------------
+
   function showConnecting() {
     if (ma) {
       wjQuery("#connecting").show();
@@ -793,49 +987,7 @@ if (chatTextbox) {  // sprawdź czy element istnieje
     ws.onmessage = onWsMessage;
     ws.onclose = onWsClose;
   }
-  function bConnect(a) {
-    if (bsocket) {
-      bsocket.onopen = null;
-      bsocket.onmessage = null;
-      bsocket.onclose = null;
-      try {
-        bsocket.close();
-      } catch (c) {}
-      bsocket = null;
-    }
-    bsocket = new WebSocket(a);
-    bsocket.binaryType = "arraybuffer";
-    bsocket.onopen = function () {
-      // console.log("WS Open: " + a);
-      // e("#battle-spect").prop("disabled", false);
-      // var user_hash = "704dc72db0d896f2691b5c1c0799f5396d552189";
-      // bubbleLogin(user_hash);
-    };
-    bsocket.onclose = function () {
-      // bubLogged = false;
-      // e(".showFriends").prop("disabled", true);
-      // e(".friends-online").hide();
-      // ftabledefault(false);
-      // e(".modal").modal("hide");
-      // if (dntt && idleState == false) {
-      //   var min = 4;
-      //   var max = 20;
-      //   var random = Math.floor(Math.random() * (max - min + 1)) + min;
-      //   console.log(
-      //     "WS closed. Trying to reconnect in " + random + " seconds.."
-      //   );
-      //   setTimeout(function () {
-      //     bConnect(bubsrv);
-      //   }, random * 1000);
-      // }
-    };
-    bsocket.onmessage = bubbleMessage;
-    bsocket.onerror = function () {
-      // bubLogged = false;
-      // e(".showFriends").prop("disabled", true);
-      // console.log("WebSocket error");
-    };
-  }
+
   function prepareData(a) {
     return new DataView(new ArrayBuffer(a));
   }
@@ -843,7 +995,6 @@ if (chatTextbox) {  // sprawdź czy element istnieje
   function wsSend(a) {
     ws.send(a.buffer);
   }
-
   function httpGet(theUrl) {
     var xmlHttp = new XMLHttpRequest();
     xmlHttp.open("GET", theUrl, false); // false for synchronous request
@@ -984,10 +1135,6 @@ if (chatTextbox) {  // sprawdź czy element istnieje
       case 100:
         loadFriendsList();
         break;
-      case 101:
-        wjQuery(".lobby-container").remove();
-        console.log("Lobby closed");
-        break;
     }
   }
 
@@ -1027,8 +1174,6 @@ if (chatTextbox) {  // sprawdź czy element istnieje
     // Retrieve sender's name and message
     var senderName = getString();
     var message = getString();
-
-  
 
     chatBoard.push({
       name: senderName,
