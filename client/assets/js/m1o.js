@@ -132,10 +132,6 @@
             </div>
             <h2 id="account-header">Informacje o koncie | <a href="#changePassword">Hasło</a> | <a href="#" id="logoutLink">Wyloguj</a></h2>
             <div class="form-group" style="margin-top: 3px; margin-bottom: 20px;">
-                <div id="account-loading" style="text-align: center; padding: 20px;">
-                    <i class="fa fa-spinner fa-spin fa-2x"></i>
-                    <p>Loading account data...</p>
-                </div>
                 <div id="account-data" style="display: none;">
                     <table class="table">
                         <tbody>
@@ -346,14 +342,24 @@
                 .off("click")
                 .on("click", function (e) {
                   e.preventDefault();
-                  wjQuery.get("/battle-modal", function (html) {
-                    if (!wjQuery("#battle-modal").length) {
-                      wjQuery("body").append(
-                        '<div id="battle-modal" class="modal fade"></div>'
-                      );
+
+                  const selectedMode = wjQuery(
+                    "input[name='mode_type']:checked"
+                  ).val();
+                  const gameMode = selectedMode === "12" ? "1v1" : "2v2";
+
+                  wjQuery.get(
+                    "/battle-modal",
+                    { mode: gameMode },
+                    function (html) {
+                      if (!wjQuery("#battle-modal").length) {
+                        wjQuery("body").append(
+                          '<div id="battle-modal" class="modal fade"></div>'
+                        );
+                      }
+                      wjQuery("#battle-modal").html(html).modal("show");
                     }
-                    wjQuery("#battle-modal").html(html).modal("show");
-                  });
+                  );
                   return false;
                 });
               wjQuery(
@@ -406,6 +412,29 @@
       });
     }
   });
+
+  // PAKIETY
+
+  window.bClose = function () {
+    const lobbyId = wjQuery(".lobby-container").data("lobby-id");
+
+    if (lobbyId && ws && ws.readyState === WebSocket.OPEN) {
+      const msg = new DataView(new ArrayBuffer(1 + 1 + 4 + lobbyId.length)); // 1 bajt dla ID pakietu, 1 bajt dla operacji, 4 bajty dla długości ID, a reszta dla ID
+      msg.setUint8(0, 101); // Packet ID for lobby operations
+      msg.setUint8(1, 1);
+      msg.setUint32(2, lobbyId.length, true); // Długość ID lobby
+      for (let i = 0; i < lobbyId.length; i++) {
+        msg.setUint8(6 + i, lobbyId.charCodeAt(i)); // Ustaw bajty ID lobby
+      }
+
+      ws.send(msg.buffer);
+
+      wjQuery("#battle-modal").remove();
+      wjQuery(".modal-backdrop").remove();
+    }
+  };
+  window.bKick = function () {};
+  window.bStart = function () {};
 
   function gameLoop() {
     ma = true;
@@ -761,7 +790,49 @@
     ws.onmessage = onWsMessage;
     ws.onclose = onWsClose;
   }
-
+  function bConnect(a) {
+    if (bsocket) {
+      bsocket.onopen = null;
+      bsocket.onmessage = null;
+      bsocket.onclose = null;
+      try {
+        bsocket.close();
+      } catch (c) {}
+      bsocket = null;
+    }
+    bsocket = new WebSocket(a);
+    bsocket.binaryType = "arraybuffer";
+    bsocket.onopen = function () {
+      // console.log("WS Open: " + a);
+      // e("#battle-spect").prop("disabled", false);
+      // var user_hash = "704dc72db0d896f2691b5c1c0799f5396d552189";
+      // bubbleLogin(user_hash);
+    };
+    bsocket.onclose = function () {
+      // bubLogged = false;
+      // e(".showFriends").prop("disabled", true);
+      // e(".friends-online").hide();
+      // ftabledefault(false);
+      // e(".modal").modal("hide");
+      // if (dntt && idleState == false) {
+      //   var min = 4;
+      //   var max = 20;
+      //   var random = Math.floor(Math.random() * (max - min + 1)) + min;
+      //   console.log(
+      //     "WS closed. Trying to reconnect in " + random + " seconds.."
+      //   );
+      //   setTimeout(function () {
+      //     bConnect(bubsrv);
+      //   }, random * 1000);
+      // }
+    };
+    bsocket.onmessage = bubbleMessage;
+    bsocket.onerror = function () {
+      // bubLogged = false;
+      // e(".showFriends").prop("disabled", true);
+      // console.log("WebSocket error");
+    };
+  }
   function prepareData(a) {
     return new DataView(new ArrayBuffer(a));
   }
@@ -909,6 +980,10 @@
         break;
       case 100:
         loadFriendsList();
+        break;
+      case 101:
+        wjQuery(".lobby-container").remove();
+        console.log("Lobby closed");
         break;
     }
   }

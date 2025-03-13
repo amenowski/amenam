@@ -1,53 +1,47 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
-router.get('/battle-modal', async (req, res) => {
-    try {
-        const settings = {
-            mode: req.query.mode || '2v2',
-            region: 'Oceania',
-            queue: '~1 minute',
-            status: 'Finding a game',
-            reward: '1.5 pt',
-            if_defeated: '-0.7 pt'
-        };
+router.get("/battle-modal", async (req, res) => {
+  try {
+    const mode = req.query.mode || "2v2";
+    const LobbyManager = require("../modules/LobbyManager");
 
-        res.render('battle-modal', {
-            settings,
-            user: req.user
-        });
-    } catch (error) {
-        console.error('Błąd podczas generowania modalu battle:', error);
-        res.status(500).send('Wystąpił błąd podczas ładowania modalu');
+    // Create a new lobby or get existing one
+    let lobbyId = req.query.lobbyId;
+    let lobby;
+
+    if (lobbyId) {
+      lobby = LobbyManager.getLobby(lobbyId);
     }
-});
 
-
-router.post('/battle/players', async (req, res) => {
-    try {
-        const { action, playerId } = req.body;
-        
-        switch(action) {
-            case 'invite':
-                // Logika zapraszania gracza
-                break;
-            case 'remove':
-                // Logika usuwania gracza
-                break;
-            // inne akcje...
-        }
-        
-        // Zwróć aktualną listę graczy
-        const players = [/* aktualna lista graczy */];
-        res.json({ success: true, players });
-        
-    } catch (error) {
-        console.error('Błąd podczas zarządzania graczami:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Wystąpił błąd podczas zarządzania graczami' 
-        });
+    if (!lobby) {
+      lobbyId = LobbyManager.createLobby(mode, req.user);
+      lobby = LobbyManager.getLobby(lobbyId);
     }
+
+    const settings = {
+      mode: req.query.mode || "2v2",
+      region: "Europe",
+      queue: "~1 minute",
+      status: "Finding a game",
+      reward: "1.5 pt",
+      if_defeated: "-0.7 pt",
+      lobbyId: lobbyId,
+    };
+
+    res.render("battle-modal", {
+      settings,
+      user: req.user,
+      lobby: lobby,
+      loadingState: false, // Add loading state flag
+      gameMode: mode,
+    });
+
+    console.log(req.user);
+  } catch (error) {
+    console.error("Błąd podczas generowania modalu battle:", error);
+    res.status(500).send("Wystąpił błąd podczas ładowania modalu");
+  }
 });
 
 module.exports = router;
