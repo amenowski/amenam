@@ -2,6 +2,7 @@
 require("dotenv").config();
 var Commands = require("./modules/CommandList");
 var GameServer = require("./GameServer");
+const BubbleServer = require("./BubbleServer");
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const session = require("express-session");
@@ -99,6 +100,9 @@ app.use(
 app.use("/", battleRouter);
 app.use("/", accountRouter);
 const server = http.createServer(app);
+
+const bubbleServer = new BubbleServer();
+bubbleServer.start();
 
 var gameServer = new GameServer();
 exports.gameServer = gameServer;

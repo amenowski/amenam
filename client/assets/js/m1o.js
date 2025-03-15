@@ -39,16 +39,26 @@
     return nickInput && nickInput.value && nickInput.readOnly && userHash;
   }
 
-  setTimeout(function () {
-    bConnect("ws://localhost:8080");
-    console.log("Connected to server");
-  }, 1000);
+  var bubsrv = 'ws://localhost:81';  // dla testów lokalnych
+
+
+  setTimeout(function() {
+    console.log("[Bubble] Łączenie z:", bubsrv);
+    bConnect(bubsrv);
+}, 1000);
   var bsocket = null;
   wHandle.friends = [];
   wHandle.myFriends = function () {
     return this.friends;
   };
 
+
+  window.bTest = function() {
+    const msg = new DataView(new ArrayBuffer(5));
+    msg.setUint8(0, 1); // Packet ID 1 dla testu
+    msg.setUint32(1, 12345, true); // jakieś przykładowe dane
+    bubSend(msg);
+};
   wHandle.showView = function (viewName) {
     if (viewName === "home") {
       wjQuery("#contentView").hide();

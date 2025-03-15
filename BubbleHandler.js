@@ -36,11 +36,17 @@ BubbleHandler.prototype.handleMessage = function (message) {
   console.log("Packet ID: " + packetId);
   switch (packetId) {
     case 1:
-      // wyslij pakiet 1
-      view.setUint8(0, 1);
-
-      this.socket.send(buffer);
-      break;
+            console.log("Otrzymano pakiet testowy");
+            const testData = view.getUint32(1, true);
+            console.log("Dane testowe:", testData);
+            
+            // Odeślij odpowiedź
+            const response = new ArrayBuffer(5);
+            const responseView = new DataView(response);
+            responseView.setUint8(0, 1);
+            responseView.setUint32(1, testData + 1, true);
+            this.socket.send(Buffer.from(response)); // Konwertuj ArrayBuffer na Buffer
+            break;
     case 2: // Packet ID dla zamknięcia lobby
       console.log("Lobby closed");
       const lobbyIdLength = view.getUint32(2, true); // Odczytaj długość ID lobby

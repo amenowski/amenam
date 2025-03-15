@@ -391,9 +391,7 @@ GameServer.prototype.start = function () {
 
     ws.playerTracker = new PlayerTracker(this, ws);
     ws.packetHandler = new PacketHandler(this, ws);
-    ws.bubbleMessage = new BubbleHandler(this, ws);
     ws.on("message", ws.packetHandler.handleMessage.bind(ws.packetHandler));
-    ws.on("message", ws.bubbleMessage.handleMessage.bind(ws.bubbleMessage));
     var bindObject = { server: this, socket: ws };
     ws.on("error", close.bind(bindObject));
     ws.on("close", close.bind(bindObject));
