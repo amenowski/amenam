@@ -1,5 +1,7 @@
 const WebSocket = require('ws');
 const BubbleHandler = require('./BubbleHandler');
+const PlayerTracker = require('./PlayerTracker');
+
 
 function BubbleServer() {
     this.clients = [];
@@ -54,7 +56,7 @@ function connectionEstablished(ws) {
     }
 
     this.clients.push(ws);
-
+    ws.playerTracker = new PlayerTracker(this, ws);
     ws.bubbleHandler = new BubbleHandler(this, ws);
 
     ws.on('message', function(message) {

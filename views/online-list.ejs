@@ -1,25 +1,32 @@
 <% onlineFriends.forEach(function(friend) { %>
-    <table class="table friend-<%= friend.id %>" style="margin-bottom: 0;">
-        <tr style="border-bottom: 1px solid #eee;">
-            <td style="text-align: left; width: 51px !important; border-top: none; position: relative;">
-                <span class="img-circle friends-circle <%= friend.status === 'accepted' ? 'friend-accepted' : 'friend-pending' %>">
-                    <%= friend.nick.substr(0,1).toUpperCase() %>
-                </span>
-            </td>
-            <td style="width: 85%; border-top: none; padding-top: 10px;">
-                <div style="position: relative;">
-                    <span style="display: inline-block;">
-                        <%= friend.nick %>
-                    </span>
-                    <span style="float: right; margin-right: 6px; margin-top: 1px;">
-                        <% if (friend.inGame) { %>
-                            <i class="fa fa-gamepad"></i>
-                        <% } else { %>
-                            <span class="status-dot online"></span>
-                        <% } %>
-                    </span>
-                </div>
-            </td>
-        </tr>
-    </table>
+<table class="table friend-<%= friend.id %>" style="margin-bottom: 0">
+  <tr style="border-bottom: 1px solid #eee">
+    <td
+      style="
+        text-align: left;
+        width: 51px !important;
+        border-top: none;
+        position: relative;
+      "
+    >
+      <span
+        class="img-circle friends-circle <%= friend.status === 'accepted' ? 'friend-accepted' : 'friend-pending' %>"
+      >
+        <%= friend.nick.substr(0,1).toUpperCase() %>
+      </span>
+    </td>
+    <td style="width: 85%; border-top: none; padding-top: 10px">
+      <div style="position: relative">
+        <span style="display: inline-block"> <%= friend.nick %> </span>
+        <span style="float: right; margin-right: 6px; margin-top: 1px">
+          <% if (friend.inGame) { %>
+          <i class="fa fa-gamepad"></i>
+          <% } else { %>
+          <span class="status-dot online"></span>
+          <% } %>
+        </span>
+      </div>
+    </td>
+  </tr>
+</table>
 <% }); %>

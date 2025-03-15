@@ -59,20 +59,19 @@
     msg.setUint32(1, 12345, true); // jakieś przykładowe dane
     bubSend(msg);
 };
-  wHandle.showView = function (viewName) {
-    if (viewName === "home") {
-      wjQuery("#contentView").hide();
+wHandle.showView = function(view) {
+  if (view === "friends") {
+      wjQuery("#friends-view").show();
+      wjQuery(".home-only").hide();
+
+          displayFriends(wHandle.friends, false);
+      
+      history.pushState(null, "", "#friends");
+  } else if (view === "home") {
+      wjQuery("#friends-view").hide();
       wjQuery(".home-only").show();
       history.pushState(null, "", "#");
-    } else if (viewName === "friends") {
-      this.loadFriends(function (html) {
-        const $contentView = wjQuery("#contentView");
-        $contentView.html(html);
-        wjQuery(".home-only, #settings").hide();
-        $contentView.show();
-      });
-      history.pushState(null, "", "#friends");
-    } else if (viewName === "account") {
+  } else if (viewName === "account") {
       const $contentView = wjQuery("#contentView");
       $contentView.html(this.loadAccount());
       wjQuery(".home-only, #settings").hide();
@@ -82,131 +81,25 @@
     }
   };
 
-  wHandle.loadFriends = function (callback) {
-    const friends = this.myFriends();
 
-    wjQuery.get(
-      "/friends-template",
-      {
-        friends: JSON.stringify(friends),
-      },
-      function (html) {
-        if (callback) callback(html);
-      }
-    );
-  };
 
-  function loadFriendsList() {
-    console.log("Loading friends list...");
-
-    if (!isLoggedIn()) {
-      wHandle.friends = [];
-      return;
-    }
-
-    // Check if we're in the battle modal and already have friends data
-    if (
-      wjQuery("#battle-modal").is(":visible") &&
-      wHandle.friends &&
-      wHandle.friends.length > 0
-    ) {
-      console.log("Using existing friends data for battle modal");
-      displayFriendsInLobby(wHandle.friends);
-      return;
-    }
-
-    // If we don't have friends data or we're not in the battle modal, make a request
-    wjQuery.get("/f", { a: "l" }, function (friends) {
-      wHandle.friends = friends.filter(
-        (friend) =>
-          friend.status === "accepted" ||
-          (friend.status === "pending" && !friend.rejected)
-      );
-
-      // If we're in the battle modal, display the friends
-      if (wjQuery("#battle-modal").is(":visible")) {
-        displayFriendsInLobby(wHandle.friends);
-      }
-
-      // Also update the online friends modal if it exists
-      const modalContent = wjQuery("#friends-view-modal-data");
-      if (modalContent.length) {
-        const onlineFriends = wHandle.friends.filter(
-          (f) => f.status === "accepted" && f.isOnline
-        );
-
-        wjQuery.get(
-          "/" + (onlineFriends.length === 0 ? "online-empty" : "online-list"),
-          {
-            onlineFriends: JSON.stringify(onlineFriends),
-          },
-          function (html) {
-            modalContent.html(html);
-          }
-        );
-      }
-    });
-  }
+ 
 
   // Helper function to display friends in the lobby
-  function displayFriendsInLobby(friends) {
-    const onlineFriends = friends.filter(
-      (f) => f.status === "accepted" && f.isOnline
-    );
-
-    // Find the lobby-friends container
-    const lobbyFriends = wjQuery(".lobby-friends-list");
-
-    if (lobbyFriends.length) {
-      // Clear loading indicator
-      lobbyFriends.empty();
-
-      if (onlineFriends.length === 0) {
-        lobbyFriends.html(
-          '<p class="text-center">No online friends available</p>'
-        );
-      } else {
-        // Fetch the online-list template and render it with our friends data
-        wjQuery.get(
-          "/online-list",
-          {
-            onlineFriends: JSON.stringify(onlineFriends),
-          },
-          function (html) {
-            // Insert the rendered HTML into the lobby-friends container
-            lobbyFriends.html(html);
-
-            // Add data-id attributes to the friend elements if needed
-            onlineFriends.forEach(function (friend) {
-              wjQuery(`.friend-${friend.id}`).attr("data-id", friend.id);
-              wjQuery(`.friend-${friend.id}`).on("click", () => {
-                bInvite(friend.id);
-              });
-              // dodaj cursor pointer
-              wjQuery(`.friend-${friend.id}`).css("cursor", "pointer");
-            });
-          }
-        );
-      }
-    }
-  }
+  
 
   // Call loadFriendsList when the battle modal is shown
   wjQuery(document).on("shown.bs.modal", "#battle-modal", function () {
-    console.log("Battle modal shown, loading friends list...");
-
-    // Make sure the lobby-friends container exists
+    console.log("Battle modal shown");
     if (!wjQuery("#battle-modal .lobby-friends-list").length) {
-      wjQuery("#battle-modal .modal-body").append(
-        '<div class="friends-section">' +
-          "<h4>Online Friends</h4>" +
-          '<div class="lobby-friends-list"><p>Loading friends...</p></div>' +
-          "</div>"
-      );
+        wjQuery("#battle-modal .modal-body").append(
+            '<div class="friends-section">' +
+            "<h4>Online Friends</h4>" +
+            '<div class="lobby-friends-list"><p>Loading friends...</p></div>' +
+            "</div>"
+        );
     }
-
-    // Load the friends list
-  });
+});
 
   wHandle.loadAccount = function () {
     return `
@@ -289,8 +182,6 @@
 
   wjQuery(document).ready(function () {
     if (isLoggedIn()) {
-      wHandle.loadFriends();
-      loadFriendsList();
       wjQuery("#gamemode").trigger("change");
 
       const handlers = {
@@ -845,6 +736,10 @@
     bsocket.binaryType = "arraybuffer";
     bsocket.onopen = function () {
       console.log("WS Open: " + a);
+      wjQuery('#friends-online').prop('disabled', false);
+      const msg = new DataView(new ArrayBuffer(1));
+        msg.setUint8(0, 1);
+        bubSend(msg);
     };
 
     bsocket.onclose = function () {
@@ -860,17 +755,160 @@
       console.log("WebSocket error");
     };
   }
-  function bubbleMessage(msg) {
-    if (typeof msg.data === "string") {
-      var drb = JSON.parse(msg.data);
+  function gIcon(online) {
+    return online ? 
+        '<i class="fa fa-circle" style="color: #5cb85c;" aria-hidden="true"></i>' : 
+        '<i class="fa fa-circle" style="color: #d9534f;" aria-hidden="true"></i>';
+}
 
-      if (typeof drb.friends !== undefined) {
-        wjQuery(".lobby-friends").html(drb.friends);
-      }
+// Pomocnicza funkcja do czyszczenia tabeli
+function ftabledefault(battle) {
+    if (!battle) {
+        wjQuery('#friends-view-modal-data table tr').remove();
+        wjQuery('#tournament-modal .tournament-invite tr').remove();
     } else {
-      readPacket(new DataView(msg.data));
+        wjQuery('#tournament-modal table.tournament-players tr').remove();
     }
+}
+function displayFriends(friends, mode) {
+  // Zapisz listę znajomych do wHandle.friends
+  wHandle.friends = friends;
+  
+  if (mode === 'side-container') {
+      // Dla side-container (tylko online friends)
+      const onlineFriends = friends.filter(f => f.o);
+      const container = wjQuery('#friends-view-modal-data table');
+      const header = wjQuery('#friends-view-modal-data h2');
+      
+      if (!onlineFriends || onlineFriends.length === 0) {
+          header.text('0 friends online').show();
+          container.empty();
+          return;
+      }
+
+      // Ukryj nagłówek gdy są znajomi online
+      header.hide();
+      
+      const html = onlineFriends.map(friend => `
+      <table class="table friend-${friend.i}" style="margin-bottom: 0">
+          <tr style="border-bottom: 1px solid #eee">
+              <td style="text-align: left; width: 51px !important; border-top: none; position: relative;">
+                  <span class="img-circle friends-circle ${friend.status === 'accepted' ? 'friend-accepted' : 'friend-pending'}">
+                      ${friend.n[0].toUpperCase()}
+                  </span>
+              </td>
+              <td style="width: 85%; border-top: none; padding-top: 10px">
+                  <div style="position: relative">
+                      <span style="display: inline-block">${friend.n}</span>
+                      <span style="float: right; margin-right: 6px; margin-top: 1px">
+                          ${friend.s === 1 ? '<i class="fa fa-gamepad"></i>' : 
+                            '<span class="status-dot online"></span>'}
+                      </span>
+                  </div>
+              </td>
+          </tr>
+      </table>`).join('');
+
+      container.html(html);
+  } else if (mode === 'lobby') {
+    const onlineFriends = friends.filter(f => f.o);
+    const container = wjQuery('.lobby-friends-list');
+    
+    if (!onlineFriends || onlineFriends.length === 0) {
+        container.html('<p class="center" style="color: silver;">Brak dostępnych znajomych</p>');
+        return;
+    }
+
+    const html = onlineFriends.map(friend => `
+    <table class="table friend-${friend.i}" style="margin-bottom: 0">
+        <tr style="border-bottom: 1px solid #eee">
+            <td style="text-align: left; width: 51px !important; border-top: none; position: relative;">
+                <span class="img-circle friends-circle ${friend.status === 'accepted' ? 'friend-accepted' : 'friend-pending'}">
+                    ${friend.n[0].toUpperCase()}
+                </span>
+            </td>
+            <td style="width: 85%; border-top: none; padding-top: 10px">
+                <div style="position: relative">
+                    <span style="display: inline-block">${friend.n}</span>
+                    <span style="float: right; margin-right: 6px; margin-top: 1px">
+                        ${friend.s === 1 ? '<i class="fa fa-gamepad"></i>' : 
+                          '<span class="status-dot online"></span>'}
+                    </span>
+                </div>
+            </td>
+        </tr>
+    </table>`).join('');
+
+    container.html(html);
+  } else {
+      // Dla głównego widoku friends (wszyscy znajomi)
+      const container = wjQuery('#friend-list');
+      
+      if (!friends || friends.length === 0) {
+          container.html('<h2 class="center" style="color: silver;font-size: 20px;">Brak znajomych</h2>');
+          return;
+      }
+
+      const html = friends.map(friend => {
+          const color = JSON.parse(friend.c);
+          return `
+          <table class="table friend-${friend.i}" style="margin-bottom: 0;">
+              <tr style="border-bottom: 1px solid #eee">
+                  <td style="text-align: left; width: 51px !important; border-top: none; position: relative;">
+                      <span class="img-circle friends-circle" style="background-color:rgba(${color.r},${color.g},${color.b},0.7);">${friend.n[0].toUpperCase()}</span>
+                  </td>
+                  <td style="width: 85%; border-top: none; padding-top: 10px">
+                      <div style="position: relative">
+                          <span style="display: inline-block">${friend.n}</span>
+                          <span style="float: right; margin-right: 6px; margin-top: 1px">
+                              ${friend.s === 1 ? '<i class="fa fa-gamepad"></i>' : 
+                                friend.o ? '<span class="status-dot online"></span>' : 
+                                '<span class="status-dot offline"></span>'}
+                          </span>
+                      </div>
+                  </td>
+              </tr>
+          </table>`;
+      }).join('');
+
+      container.html(html);
   }
+}
+function bubbleMessage(msg) {
+  if (typeof msg.data === "string") {
+      var drb = JSON.parse(msg.data);
+      
+      if ('friends' in drb) {
+          displayFriends(drb.friends, 'side-container');  // dla side-container
+          displayFriends(drb.friends, 'main');           // dla głównego widoku
+          displayFriends(drb.friends, 'lobby');          // dla lobby
+      } else if ('ffs' in drb) {  // Poprawione sprawdzanie
+          var pis = wjQuery(".inviteplayer_" + drb.ffs.i);
+          if (pis.length > 0) {
+              if (typeof drb.ffs.offline !== undefined) {
+                  pis.remove();
+                  if (wjQuery('#friends-view-modal-data tr').length == 0) {
+                      wjQuery('#friends-view-modal-data h2').show();
+                  }
+              }
+              if (typeof drb.ffs.online !== undefined) {
+                  pis.children('.d-online').html(gIcon(drb.ffs.online));
+              }
+              if (typeof drb.ffs.server !== undefined) {
+                  if (drb.ffs.server > 0) {
+                      pis.children('.d-online').html('2v2');
+                      pis.prop('disabled', true).addClass('tr-disabled');
+                  } else {
+                      pis.children('.d-online').html(gIcon(false));
+                      pis.prop('disabled', false).removeClass('tr-disabled');
+                  }
+              }
+          }
+      }
+  } else {
+      readPacket(new DataView(msg.data));
+  }
+}
   function readPacket(view) {
     function getString() {
       var text = "",
@@ -891,10 +929,6 @@
     }
 
     switch (view.getUint8(offset++)) {
-      case 1:
-        console.log("LOADING LOBBY FRIENDS");
-        displayFriendsInLobby(friends);
-        break;
       case 2:
         console.log("Lobby closed");
         wjQuery("#battle-modal").remove();
@@ -1141,9 +1175,6 @@
         break;
       case 99:
         addChat(msg, offset);
-        break;
-      case 100:
-        loadFriendsList();
         break;
     }
   }

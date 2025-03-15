@@ -66,6 +66,8 @@ function PlayerTracker(gameServer, socket) {
     this.socket = socket;
     this.lastActivity = Date.now();
 
+    this.pID = Math.floor(Math.random() * 1000000); // Prosty generator ID
+
     if (socket && socket.upgradeReq && socket.upgradeReq.headers.cookie) {
         const cookies = parseCookies(socket.upgradeReq.headers.cookie);
         this.userHash = cookies.userHash;
@@ -105,11 +107,6 @@ function PlayerTracker(gameServer, socket) {
         height: 0 // Half-height
     };
 
-    // Gamemode function
-    if (gameServer) {
-        this.pID = gameServer.getNewPlayerID();
-        gameServer.gameMode.onPlayerInit(this);
-    }
 }
 
 module.exports = PlayerTracker;

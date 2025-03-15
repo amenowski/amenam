@@ -10,26 +10,60 @@ const supabase = createClient(
 );
 
 function broadcastFriendUpdate(gameServer, userId, targetUserId = null) {
-
-    if (!gameServer || !gameServer.clients) {
+    if (!gameServer || !gameServer.bubbleServer || !gameServer.bubbleServer.clients) {
         return;
     }
 
     const uniqueUserIds = new Set([userId]);
     if (targetUserId) uniqueUserIds.add(targetUserId);
 
-    for (let i = 0; i < gameServer.clients.length; i++) {
-        const client = gameServer.clients[i];
-        if (client?.playerTracker?.userInfo?.id) {
-            if (uniqueUserIds.has(client.playerTracker.userInfo.id)) {
-                try {
-                    client.sendPacket(new Packet.ServerMsg(100));
-                } catch (err) {
-                    console.error('Błąd wysyłania pakietu:', err);
+    // Używamy bubbleServer.clients zamiast gameServer.clients
+    gameServer.bubbleServer.clients.forEach(async (client) => {
+        if (client?.playerTracker?.userInfo?.id && uniqueUserIds.has(client.playerTracker.userInfo.id)) {
+            try {
+                const { data: friends } = await supabase
+                    .from('friends')
+                    .select(`
+                        *,
+                        users!friends_user_id_fkey(nick),
+                        friend:users!friends_friend_id_fkey(nick)
+                    `)
+                    .or(`user_id.eq.${client.playerTracker.userInfo.id},friend_id.eq.${client.playerTracker.userInfo.id}`)
+                    .not('status', 'eq', 'rejected');
+
+                if (friends) {
+                    const mappedFriends = friends.map(friend => {
+                        const friendNick = friend.user_id === client.playerTracker.userInfo.id ? 
+                            friend.friend.nick : friend.users.nick;
+
+                        // Sprawdzamy status w bubbleServer
+                        const clientInfo = gameServer.bubbleServer.clients.find(c => 
+                            c.playerTracker?.name === friendNick
+                        );
+
+                        return {
+                            i: friend.id,
+                            n: friendNick,
+                            o: !!clientInfo,
+                            s: clientInfo?.playerTracker?.cells?.length > 0 ? 1 : 0,
+                            c: JSON.stringify({
+                                r: Math.floor(Math.random() * 255),
+                                g: Math.floor(Math.random() * 255),
+                                b: Math.floor(Math.random() * 255)
+                            }),
+                            p: 0
+                        };
+                    });
+
+                    client.send(JSON.stringify({
+                        friends: mappedFriends
+                    }));
                 }
+            } catch (err) {
+                console.error('Błąd wysyłania aktualizacji znajomych:', err);
             }
         }
-    }
+    });
 }
 
 router.get('/online-empty', (req, res) => {
